@@ -19,7 +19,7 @@ Each stage is a branch:
 2. A pull request from `staging` to `main` is the promotion. Once it's merged, CI copies the image staging was running into `charts/hello/values-production.yaml`. Nothing is rebuilt.
 3. Argo CD, in the lab cluster, notices each commit and rolls it out. CI never talks to the cluster.
 
-Rolling back is reverting the commit that changed the image.
+A push that only changes `charts/` builds nothing: Argo CD applies the new configuration as it is. That's also how rolling back works: revert the commit that changed the image, on `main` for production or on `staging` for staging.
 
 ## Run it locally
 
