@@ -86,6 +86,13 @@ func TestFonts(t *testing.T) {
 	}
 }
 
+func TestFavicon(t *testing.T) {
+	res, _ := get(t, "/favicon.png")
+	if res.StatusCode != http.StatusOK || res.Header.Get("Content-Type") != "image/png" {
+		t.Fatalf("got %d %q, want 200 image/png", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+}
+
 func TestBarcodeFollowsVersion(t *testing.T) {
 	a, b := Info{Version: "sha-1a2b3c4"}, Info{Version: "sha-9f8e7d6"}
 	if !reflect.DeepEqual(a.Barcode(), a.Barcode()) {

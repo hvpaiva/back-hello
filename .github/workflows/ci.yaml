@@ -1,7 +1,7 @@
-# hello's CI: its own tests, then the platform's delivery workflow, which
-# validates charts/hello and ships it (staging builds and deploys, main
-# promotes). The delivery logic lives in the lab repository, so every service
-# gets the same behavior and a fix reaches them all at once.
+# hello's CI is two workflows the platform provides in the lab repository:
+# the checks for Go services, then delivery, which validates charts/hello and
+# ships it (staging builds and deploys, main promotes). Every service gets the
+# same behavior, and a fix reaches them all at once.
 name: ci
 
 on:
@@ -13,22 +13,13 @@ permissions: {}
 
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    uses: hvpaiva/back/.github/workflows/go.yaml@main
     permissions:
       contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-      - run: go vet ./...
-      - run: go test ./...
 
   delivery:
     needs: test
-    uses: hvpaiva/back/.github/workflows/service.yaml@main
+    uses: hvpaiva/back/.github/workflows/delivery.yaml@main
     with:
       service: hello
     permissions:

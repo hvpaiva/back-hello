@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
+<link rel="icon" type="image/png" href="/favicon.png">
 <title>{{.Service}} ({{.Env}})</title>
 <style>
   @font-face {
@@ -143,6 +144,16 @@
   }
   .note[hidden] { display: none; }
   .note.alert { color: var(--ink); font-weight: 700; }
+  .lab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.9rem;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .lab:hover { color: var(--ink); }
+  .lab:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 
   @keyframes swing {
     0% { transform: rotate(7deg); }
@@ -183,6 +194,7 @@
 </main>
 <p class="note" id="note">This page reloads by itself when a new version is deployed.</p>
 <p class="note alert" id="offline" hidden>Can't reach {{.Service}} right now. Trying again every 3 seconds.</p>
+<a class="lab" href="https://github.com/hvpaiva/back"><img src="/favicon.png" alt="" width="20" height="20">BACK lab</a>
 <script>
   const version = {{.Version}};
   const uptime = document.getElementById("uptime");
