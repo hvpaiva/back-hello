@@ -1,5 +1,4 @@
-// Command hello is the lab's sample service: a status page that shows which
-// version is running, in which environment, and on which pod.
+// Command hello is the BACK lab's sample service: a status page about itself.
 package main
 
 import (
@@ -17,6 +16,10 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 // version is set at build time: go build -ldflags "-X main.version=sha-1a2b3c4".
@@ -29,13 +32,58 @@ var page = template.Must(template.ParseFS(web, "web/index.html"))
 
 // Info is what the page shows, also served as JSON at /api/info.
 type Info struct {
-	Service   string    `json:"service"`
-	Version   string    `json:"version"`
-	Env       string    `json:"env"`
-	Pod       string    `json:"pod"`
-	Namespace string    `json:"namespace"`
-	Node      string    `json:"node"`
-	Started   time.Time `json:"started"`
+	Service   string        `json:"service"`
+	Version   string        `json:"version"`
+	Env       string        `json:"env"`
+	Pod       string        `json:"pod"`
+	Namespace string        `json:"namespace"`
+	Node      string        `json:"node"`
+	Started   time.Time     `json:"started"`
+	Bucket    *BucketStatus `json:"bucket,omitempty"`
+}
+
+// BucketStatus says whether the service reaches its bucket.
+type BucketStatus struct {
+	Name      string `json:"name"`
+	Reachable bool   `json:"reachable"`
+	Error     string `json:"error,omitempty"`
+}
+
+type bucketProbe struct {
+	name  string
+	check func(context.Context) error
+}
+
+func newBucketProbe(ctx context.Context, name string) *bucketProbe {
+	if name == "" {
+		return nil
+	}
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return &bucketProbe{name: name, check: func(context.Context) error { return err }}
+	}
+	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		// LocalStack serves buckets at <endpoint>/<bucket>.
+		o.UsePathStyle = cfg.BaseEndpoint != nil
+		o.RetryMaxAttempts = 1
+	})
+	return &bucketProbe{name: name, check: func(ctx context.Context) error {
+		_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(name)})
+		return err
+	}}
+}
+
+func (p *bucketProbe) status(ctx context.Context) *BucketStatus {
+	if p == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	s := &BucketStatus{Name: p.name, Reachable: true}
+	if err := p.check(ctx); err != nil {
+		s.Reachable, s.Error = false, err.Error()
+	}
+	return s
 }
 
 // Uptime formats how long the service has been running, like "3h 12m" or "45s".
@@ -95,7 +143,7 @@ func newInfo(now time.Time) Info {
 	}
 }
 
-func routes(info Info) http.Handler {
+func routes(info Info, bucket *bucketProbe) http.Handler {
 	mux := http.NewServeMux()
 	fonts, _ := fs.Sub(web, "web")
 	mux.Handle("GET /fonts/", http.FileServerFS(fonts))
@@ -105,18 +153,23 @@ func routes(info Info) http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("ok\n"))
 	})
-	mux.HandleFunc("GET /api/info", func(w http.ResponseWriter, _ *http.Request) {
+	current := func(r *http.Request) Info {
+		now := info
+		now.Bucket = bucket.status(r.Context())
+		return now
+	}
+	mux.HandleFunc("GET /api/info", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		_ = json.NewEncoder(w).Encode(info)
+		_ = json.NewEncoder(w).Encode(current(r))
 	})
-	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		data := struct {
 			Info
 			Now time.Time
-		}{info, time.Now()}
+		}{current(r), time.Now()}
 		if err := page.Execute(w, data); err != nil {
 			slog.Error("render page", "err", err)
 		}
@@ -127,13 +180,14 @@ func routes(info Info) http.Handler {
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	info := newInfo(time.Now())
+	bucket := newBucketProbe(context.Background(), os.Getenv("BUCKET_NAME"))
 	srv := &http.Server{
 		Addr:              ":" + env("PORT", "8080"),
-		Handler:           routes(info),
+		Handler:           routes(info, bucket),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	// Kubernetes sends SIGTERM before stopping a pod: finish in-flight requests, then exit.
+	// Kubernetes sends SIGTERM before killing a pod: drain in-flight requests.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer stop()
 	go func() {
@@ -143,7 +197,7 @@ func main() {
 		_ = srv.Shutdown(shutdown)
 	}()
 
-	slog.Info("listening", "addr", srv.Addr, "version", info.Version, "env", info.Env)
+	slog.Info("listening", "addr", srv.Addr, "version", info.Version, "env", info.Env, "bucket", os.Getenv("BUCKET_NAME"))
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server stopped", "err", err)
 		os.Exit(1)

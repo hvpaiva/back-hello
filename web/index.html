@@ -20,7 +20,6 @@
     src: url("/fonts/barlow-condensed-700.woff2") format("woff2");
   }
 
-  /* The page is a hang tag: its color says the environment, its big line says the version. */
   :root {
     --ground: #e3e8ed;
     --ink: #17202a;
@@ -117,7 +116,6 @@
     fill: currentColor;
   }
 
-  /* The tear-off stub: where this copy is running right now. */
   .facts {
     display: grid;
     grid-template-columns: max-content 1fr;
@@ -135,6 +133,8 @@
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
   }
+  .facts .state { margin-left: 0.4rem; font-weight: 500; opacity: 0.78; }
+  .facts .state.down { opacity: 1; font-weight: 700; text-decoration: underline wavy; }
 
   .note {
     margin: 2.25rem 0 0;
@@ -189,6 +189,7 @@
       <div><dt>{{if .Namespace}}pod{{else}}host{{end}}</dt><dd id="pod">{{.Pod}}</dd></div>
       {{with .Node}}<div><dt>node</dt><dd>{{.}}</dd></div>{{end}}
       <div><dt>up for</dt><dd id="uptime" data-started="{{.Started.UTC.Format "2006-01-02T15:04:05Z"}}">{{.Uptime .Now}}</dd></div>
+      {{with .Bucket}}<div><dt>bucket</dt><dd>{{.Name}}<span class="state{{if not .Reachable}} down{{end}}" id="bucket-state">{{if .Reachable}}reachable{{else}}unreachable{{end}}</span></dd></div>{{end}}
     </dl>
   </article>
 </main>
@@ -209,15 +210,12 @@
   }
   setInterval(() => { uptime.textContent = formatUptime(Date.now() - started); }, 1000);
 
-  // Versions this tab has shown. During a rollout the old and new pods answer
-  // side by side for a moment; remembering what was shown keeps the page from
-  // flipping back to the old version.
+  // During a rollout old and new pods both answer; don't flip back to a version already shown.
   function shown() {
     try { return JSON.parse(sessionStorage.getItem("shown") || "[]"); } catch { return []; }
   }
   try { sessionStorage.setItem("shown", JSON.stringify([...new Set([...shown(), version])])); } catch {}
 
-  // Poll the service: reload when a newer version answers, flag when nothing does.
   async function poll() {
     try {
       const res = await fetch("/api/info", { cache: "no-store" });
@@ -227,6 +225,11 @@
       document.getElementById("note").hidden = false;
       if (info.version !== version && !shown().includes(info.version)) { location.reload(); return; }
       if (info.version === version) document.getElementById("pod").textContent = info.pod;
+      const state = document.getElementById("bucket-state");
+      if (state && info.bucket) {
+        state.textContent = info.bucket.reachable ? "reachable" : "unreachable";
+        state.classList.toggle("down", !info.bucket.reachable);
+      }
     } catch {
       document.getElementById("offline").hidden = false;
       document.getElementById("note").hidden = true;

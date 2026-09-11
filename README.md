@@ -2,7 +2,7 @@
 
 # hello
 
-The sample service of the [BACK lab](https://github.com/hvpaiva/back). It's a status page that shows which version is running, in which stage and on which pod.
+The sample service of the [BACK lab](https://github.com/hvpaiva/back). It's a status page that shows which version is running, in which stage, on which pod, and whether it reaches the bucket the platform gave it.
 
 <p align="center">
   <img src="docs/images/hello-staging.png" alt="hello in staging: a yellow hang tag showing version sha-de4d439" width="45%">
@@ -13,7 +13,7 @@ The page is styled as a hang tag: yellow in staging, green in production, grey w
 
 ## How it ships
 
-This repository holds the code and the service's deploy configuration, in `charts/hello/`. The chart that reads it belongs to the platform ([`charts/app`](https://github.com/hvpaiva/back/tree/main/charts/app) in the lab repository), so the service only says what it needs: its name, team, port, size and whether it's public.
+This repository holds the code and the service's deploy configuration, in `charts/hello/`. The chart that reads it belongs to the platform ([`charts/app`](https://github.com/hvpaiva/back/tree/main/charts/app) in the lab repository), so the service only says what it needs: its name, team, port, size, whether it's public, and a bucket (with versioning in production). The platform creates the bucket and hands hello its details.
 
 Each stage is a branch:
 
@@ -47,6 +47,6 @@ just test
 | `GET /api/info` | The same facts as JSON |
 | `GET /healthz` | `ok`, for the liveness and readiness probes |
 
-It listens on `PORT` (8080 by default) and reads `APP_ENV`, plus `POD_NAME`, `POD_NAMESPACE` and `NODE_NAME`, which the platform's chart fills in from the Kubernetes downward API.
+It listens on `PORT` (8080 by default) and reads `APP_ENV`, plus `POD_NAME`, `POD_NAMESPACE` and `NODE_NAME`, which the platform's chart fills in from the Kubernetes downward API. When `BUCKET_NAME` is set, it checks that bucket on every request with the AWS SDK, which reads `AWS_REGION`, `AWS_ENDPOINT_URL` and the credentials from the environment; the platform provides all of them.
 
 The font is Barlow Condensed, under the SIL Open Font License (`web/fonts/OFL.txt`).
