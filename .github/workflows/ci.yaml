@@ -6,6 +6,9 @@
 #
 # CI never talks to the cluster: Argo CD notices the commit and rolls it out.
 # Commits pushed with the workflow's own token don't start new runs.
+#
+# Rolling back is reverting the commit that changed the image. The plan job
+# makes sure CI leaves such a revert alone instead of redeploying on top of it.
 name: ci
 
 on:
@@ -33,9 +36,50 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
 
+  # Decides what a push to a stage branch needs.
+  #   staging: a new image, unless the push only touched charts/ (the deploy
+  #            configuration), which Argo CD applies as it is.
+  #   main:    a promotion, only if the push changed the image staging runs,
+  #            as merging staging does. Reverting a promotion doesn't.
+  plan:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.plan.outputs.build }}
+      promote: ${{ steps.plan.outputs.promote }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: plan
+        env:
+          BEFORE: ${{ github.event.before }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          build=false
+          promote=false
+          known=false
+          if git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then known=true; fi
+          if [[ $BRANCH == staging ]]; then
+            if ! $known || git diff --name-only "$BEFORE" "$GITHUB_SHA" | grep -qv '^charts/'; then
+              build=true
+            fi
+          elif [[ $BRANCH == main ]]; then
+            now=$(yq '.image' "$CHART_DIR/values-staging.yaml")
+            before=none
+            if $known; then before=$(git show "$BEFORE:$CHART_DIR/values-staging.yaml" | yq '.image'); fi
+            if [[ $now != "$before" ]]; then promote=true; fi
+          fi
+          echo "build=$build promote=$promote"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "promote=$promote" >> "$GITHUB_OUTPUT"
+
   staging:
-    if: github.event_name == 'push' && github.ref_name == 'staging'
-    needs: test
+    needs: [test, plan]
+    if: needs.plan.outputs.build == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -85,8 +129,8 @@ jobs:
           git push origin HEAD:staging
 
   production:
-    if: github.event_name == 'push' && github.ref_name == 'main'
-    needs: test
+    needs: [test, plan]
+    if: needs.plan.outputs.promote == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
