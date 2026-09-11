@@ -5,5 +5,5 @@ application:
   name: hello
   team: platform
 port: 8080
-size: small
+size: huge
 public: true
