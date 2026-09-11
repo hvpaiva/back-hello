@@ -5,11 +5,11 @@
 The sample service of the [BACK lab](https://github.com/hvpaiva/back). It's a status page that shows which version is running, in which stage, on which pod, and whether it reaches the bucket the platform gave it.
 
 <p align="center">
-  <img src="docs/images/hello-staging.png" alt="hello in staging: a yellow hang tag showing version sha-de4d439" width="45%">
+  <img src="docs/images/hello-staging.png" alt="hello in staging: an orange hang tag showing version sha-de4d439" width="45%">
   <img src="docs/images/hello-production.png" alt="hello in production: a green hang tag showing the same version" width="45%">
 </p>
 
-The page is styled as a hang tag: yellow in staging, green in production, grey when it runs outside the cluster. The big line is the version, and the barcode is drawn from it, so a new version looks different at a glance. When a new version starts answering, the page reloads by itself. You can watch a rollout without touching the browser.
+The page is styled as a hang tag: orange in staging, green in production, grey when it runs outside the cluster. The big line is the version, and the barcode is drawn from it, so a new version looks different at a glance. When a new version starts answering, the page reloads by itself. You can watch a rollout without touching the browser.
 
 ## How it ships
 
