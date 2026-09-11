@@ -1,4 +1,4 @@
-<a href="https://github.com/hvpaiva/back"><img src="https://raw.githubusercontent.com/hvpaiva/back/main/docs/images/back-stack.png" alt="BACK lab" width="72" align="right"></a>
+<a href="https://github.com/hvpaiva/back"><img src="https://raw.githubusercontent.com/hvpaiva/back/main/docs/images/logo.png" alt="BACK lab" width="72" align="right"></a>
 
 # hello
 
