@@ -1,0 +1,4 @@
+# Pinned toolchain. Run `mise install` once inside this directory.
+[tools]
+go = "1.27.1"
+just = "1.58.0"
