@@ -106,7 +106,7 @@ func TestPage(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("got status %d", res.StatusCode)
 	}
-	for _, want := range []string{"sha-1a2b3c4", `class="tag env-staging"`, "hello-staging", "hello-5d8f7c9b6-x2k4p", "1m 30s"} {
+	for _, want := range []string{"sha-1a2b3c4", `class="spin-inner env-staging"`, "hello-staging", "hello-5d8f7c9b6-x2k4p", "1m 30s"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page is missing %q", want)
 		}
