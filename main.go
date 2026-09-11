@@ -99,6 +99,9 @@ func routes(info Info) http.Handler {
 	mux := http.NewServeMux()
 	fonts, _ := fs.Sub(web, "web")
 	mux.Handle("GET /fonts/", http.FileServerFS(fonts))
+	mux.HandleFunc("GET /favicon.png", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFileFS(w, r, web, "web/favicon.png")
+	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("ok\n"))
 	})
