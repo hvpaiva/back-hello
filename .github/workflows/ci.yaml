@@ -1,7 +1,3 @@
-# hello's CI is two workflows the platform provides in the lab repository:
-# the checks for Go services, then delivery, which validates charts/hello and
-# ships it (staging builds and deploys, main promotes). Every service gets the
-# same behavior, and a fix reaches them all at once.
 name: ci
 
 on:

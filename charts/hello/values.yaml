@@ -1,9 +1,8 @@
-# How hello runs, in every stage. The chart that reads this is the platform's
-# golden path (charts/app in hvpaiva/back); it only accepts the fields it
-# documents, so a typo fails the deploy instead of being ignored.
+# Read by the platform's chart: charts/app in hvpaiva/back.
 application:
   name: hello
   team: platform
 port: 8080
 size: small
 public: true
+bucket: {}

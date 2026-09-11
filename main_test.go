@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -25,7 +27,12 @@ func testInfo() Info {
 
 func get(t *testing.T, path string) (*http.Response, string) {
 	t.Helper()
-	srv := httptest.NewServer(routes(testInfo()))
+	return getWithBucket(t, path, nil)
+}
+
+func getWithBucket(t *testing.T, path string, bucket *bucketProbe) (*http.Response, string) {
+	t.Helper()
+	srv := httptest.NewServer(routes(testInfo(), bucket))
 	defer srv.Close()
 	res, err := http.Get(srv.URL + path)
 	if err != nil {
@@ -57,6 +64,40 @@ func TestInfoAPI(t *testing.T) {
 	}
 	if got.Version != "sha-1a2b3c4" || got.Env != "staging" || got.Namespace != "hello-staging" {
 		t.Fatalf("unexpected info: %+v", got)
+	}
+	if got.Bucket != nil {
+		t.Fatalf("a service without a bucket reported one: %+v", got.Bucket)
+	}
+}
+
+func TestBucket(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		err   error
+		state string
+	}{
+		{"reachable", nil, "reachable"},
+		{"unreachable", errors.New("connection refused"), "unreachable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			probe := &bucketProbe{name: "hello-staging-hello", check: func(context.Context) error { return tc.err }}
+			_, body := getWithBucket(t, "/api/info", probe)
+			var got Info
+			if err := json.Unmarshal([]byte(body), &got); err != nil {
+				t.Fatal(err)
+			}
+			want := &BucketStatus{Name: "hello-staging-hello", Reachable: tc.err == nil}
+			if tc.err != nil {
+				want.Error = tc.err.Error()
+			}
+			if !reflect.DeepEqual(got.Bucket, want) {
+				t.Fatalf("bucket: got %+v, want %+v", got.Bucket, want)
+			}
+			_, page := getWithBucket(t, "/", probe)
+			if !strings.Contains(page, "hello-staging-hello") || !strings.Contains(page, ">"+tc.state+"<") {
+				t.Errorf("page doesn't show the bucket as %s", tc.state)
+			}
+		})
 	}
 }
 
