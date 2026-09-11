@@ -166,7 +166,7 @@
   <span class="string" aria-hidden="true"></span>
   <article class="tag env-{{.Env}}" aria-labelledby="version">
     <span class="eyelet" aria-hidden="true"></span>
-    <p class="heading"><span>{{.Service}}</span><span>{{.Env}}</span></p>
+    <p class="heading"><span>{{.Service}}</span><span>[{{.Env}}]</span></p>
     <h1 class="version" id="version">{{.Version}}</h1>
     {{with .Barcode}}
     <svg class="barcode" viewBox="0 0 {{.Width}} 10" preserveAspectRatio="none" aria-hidden="true">
