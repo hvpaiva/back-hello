@@ -1,14 +1,22 @@
-# Tests every push and pull request. On main, it also publishes the image and
-# deploys it to dev by committing the new tag to back-gitops. CI never talks to
-# the cluster: Argo CD pulls the change from Git.
+# Tests every push and pull request. Pushes to the two stage branches also
+# deploy, by writing the image into that stage's values file:
+#
+#   staging  builds the image and writes it to charts/hello/values-staging.yaml
+#   main     promotes the image staging ran to charts/hello/values-production.yaml
+#
+# CI never talks to the cluster: Argo CD notices the commit and rolls it out.
+# Commits pushed with the workflow's own token don't start new runs.
 name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   pull_request:
 
 permissions: {}
+
+env:
+  CHART_DIR: charts/hello
 
 jobs:
   test:
@@ -25,23 +33,20 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
 
-  release:
-    if: github.event_name == 'push'
+  staging:
+    if: github.event_name == 'push' && github.ref_name == 'staging'
     needs: test
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      contents: write
       packages: write
-    # One deploy at a time, so two pushes can't race on the same file.
     concurrency:
-      group: release
+      group: deploy-staging
       cancel-in-progress: false
     env:
       IMAGE: ghcr.io/${{ github.repository }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
 
       - name: Pick the image tag
         id: tag
@@ -64,25 +69,45 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # The deploy key can write to back-gitops and nothing else.
-      - name: Check out back-gitops
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: hvpaiva/back-gitops
-          ssh-key: ${{ secrets.GITOPS_DEPLOY_KEY }}
-          path: gitops
-
-      - name: Deploy to dev
-        working-directory: gitops
+      - name: Deploy to staging
         env:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          yq -i '.image = strenv(IMAGE) + ":" + strenv(TAG)' apps/hello/dev/values.yaml
+          yq -i '.image = strenv(IMAGE) + ":" + strenv(TAG)' "$CHART_DIR/values-staging.yaml"
           if git diff --quiet; then
-            echo "dev already runs $TAG"
+            echo "staging already runs $TAG"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore(hello): deploy $TAG to dev"
-          git push
+          git commit -am "chore(hello): deploy $TAG to staging"
+          git pull --rebase origin staging
+          git push origin HEAD:staging
+
+  production:
+    if: github.event_name == 'push' && github.ref_name == 'main'
+    needs: test
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Production runs exactly the image that ran in staging: nothing is rebuilt.
+      - name: Promote the image staging ran
+        run: |
+          IMAGE=$(yq '.image' "$CHART_DIR/values-staging.yaml")
+          export IMAGE
+          yq -i '.image = strenv(IMAGE)' "$CHART_DIR/values-production.yaml"
+          if git diff --quiet; then
+            echo "production already runs $IMAGE"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(hello): promote ${IMAGE##*:} to production"
+          git pull --rebase origin main
+          git push origin HEAD:main
