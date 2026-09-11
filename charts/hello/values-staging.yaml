@@ -1,2 +1,2 @@
 # The image is written by CI on every build of this branch.
-image: ghcr.io/hvpaiva/back-hello:sha-d37d030
+image: ghcr.io/hvpaiva/back-hello:sha-bfd05d7
