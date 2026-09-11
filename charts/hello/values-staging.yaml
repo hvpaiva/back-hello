@@ -1,3 +1,3 @@
 # What runs in staging (the staging branch). CI writes the image on every
 # build of this branch.
-image: ghcr.io/hvpaiva/back-hello:sha-cfe7e0d
+image: ghcr.io/hvpaiva/back-hello:sha-6d9f572
