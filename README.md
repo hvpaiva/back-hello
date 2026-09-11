@@ -15,6 +15,8 @@ Each stage is a branch:
 | `staging` | staging | http://hello.staging.localhost |
 | `main` | production | http://hello.localhost |
 
+The CI in `.github/workflows/ci.yaml` only runs hello's own tests; the rest is the platform's delivery workflow ([`service.yaml`](https://github.com/hvpaiva/back/blob/main/.github/workflows/service.yaml) in the lab repository), the same for every service. On a pull request it checks `charts/hello/` against the platform's chart, so a mistake shows up before the merge. On the stage branches it ships:
+
 1. A push to `staging` runs the tests, builds `ghcr.io/hvpaiva/back-hello:sha-<commit>` and commits that image to `charts/hello/values-staging.yaml`.
 2. A pull request from `staging` to `main` is the promotion. Once it's merged, CI copies the image staging was running into `charts/hello/values-production.yaml`. Nothing is rebuilt.
 3. Argo CD, in the lab cluster, notices each commit and rolls it out. CI never talks to the cluster.
