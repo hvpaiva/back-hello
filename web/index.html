@@ -71,6 +71,18 @@
     margin-bottom: -30px;
     background: var(--string);
   }
+  /* Holds the tag and its back, so a click turns both together. The depth
+     sits on the outer box; only the inner one turns. */
+  .spin {
+    position: relative;
+    width: 100%;
+    perspective: 1400px;
+  }
+  .spin-inner {
+    position: relative;
+    width: 100%;
+    transform-style: preserve-3d;
+  }
   .tag {
     position: relative;
     width: 100%;
@@ -78,6 +90,38 @@
     background: var(--tag);
     color: var(--tag-ink);
     clip-path: polygon(13% 0, 87% 0, 100% 8%, 100% 100%, 0 100%, 0 8%);
+    backface-visibility: hidden;
+  }
+  .tag-back {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    background: color-mix(in srgb, var(--tag-ink) 12%, var(--tag));
+    clip-path: polygon(13% 0, 87% 0, 100% 8%, 100% 100%, 0 100%, 0 8%);
+    transform: rotateY(180deg);
+    backface-visibility: hidden;
+  }
+  .tag-back img { width: 128px; height: 128px; }
+  .tag-back-name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: color-mix(in srgb, var(--tag-ink) 70%, transparent);
+  }
+  .tag-back::after {
+    content: "";
+    position: absolute;
+    top: 18px;
+    left: calc(50% - 12px);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--ground);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--tag-ink) 28%, var(--tag));
   }
   .eyelet {
     position: absolute;
@@ -175,7 +219,9 @@
 <body>
 <main class="hanger">
   <span class="string" aria-hidden="true"></span>
-  <article class="tag env-{{.Env}}" aria-labelledby="version">
+  <div class="spin">
+  <div class="spin-inner env-{{.Env}}" id="spin">
+  <article class="tag" aria-labelledby="version">
     <span class="eyelet" aria-hidden="true"></span>
     <p class="heading"><span>{{.Service}}</span><span>[{{.Env}}]</span></p>
     <h1 class="version" id="version">{{.Version}}</h1>
@@ -192,6 +238,12 @@
       {{with .Bucket}}<div><dt>bucket</dt><dd>{{.Name}}<span class="state{{if not .Reachable}} down{{end}}" id="bucket-state">{{if .Reachable}}reachable{{else}}unreachable{{end}}</span></dd></div>{{end}}
     </dl>
   </article>
+  <span class="tag-back" aria-hidden="true">
+    <img src="/favicon.png" alt="" width="128" height="128">
+    <span class="tag-back-name">BACK lab</span>
+  </span>
+  </div>
+  </div>
 </main>
 <p class="note" id="note">This page reloads by itself when a new version is deployed.</p>
 <p class="note alert" id="offline" hidden>Can't reach {{.Service}} right now. Trying again every 3 seconds.</p>
@@ -236,6 +288,33 @@
     }
   }
   setInterval(poll, 3000);
+
+  // Click the tag and it turns once around the string, overshoots the way a
+  // twisted cord unwinds, and settles back where it started.
+  const spin = document.getElementById("spin");
+  const stillness = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let spinning = false;
+  spin.addEventListener("click", () => {
+    if (spinning || stillness.matches) return;
+    if (String(window.getSelection() || "")) return; // the click ended a selection
+    spinning = true;
+    // Angles sampled from a spin losing speed to drag: a quarter turn in the
+    // first tenth, most of it by halfway, then it drifts past the finish and
+    // eases back, the way a twisted cord unwinds. The slight tilt is the
+    // pendulum the string still allows.
+    const turn = spin.animate([
+      { transform: "rotateY(0deg) rotateZ(0deg)", easing: "linear" },
+      { transform: "rotateY(-75deg) rotateZ(-0.8deg)", offset: 0.1, easing: "linear" },
+      { transform: "rotateY(-164deg) rotateZ(-1.4deg)", offset: 0.25, easing: "linear" },
+      { transform: "rotateY(-229deg) rotateZ(-1deg)", offset: 0.4, easing: "linear" },
+      { transform: "rotateY(-278deg) rotateZ(0.6deg)", offset: 0.55, easing: "linear" },
+      { transform: "rotateY(-314deg) rotateZ(0.9deg)", offset: 0.7, easing: "ease-out" },
+      { transform: "rotateY(-345deg) rotateZ(0.4deg)", offset: 0.84, easing: "ease-out" },
+      { transform: "rotateY(-368deg) rotateZ(-0.35deg)", offset: 0.94, easing: "ease-in-out" },
+      { transform: "rotateY(-360deg) rotateZ(0deg)" },
+    ], { duration: 1500 });
+    turn.onfinish = () => { spinning = false; };
+  });
 </script>
 </body>
 </html>
