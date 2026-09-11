@@ -1,6 +1,13 @@
+<a href="https://github.com/hvpaiva/back"><img src="https://raw.githubusercontent.com/hvpaiva/back/main/docs/images/back-stack.png" alt="BACK lab" width="72" align="right"></a>
+
 # hello
 
 The sample service of the [BACK lab](https://github.com/hvpaiva/back). It's a status page that shows which version is running, in which stage and on which pod.
+
+<p align="center">
+  <img src="docs/images/hello-staging.png" alt="hello in staging: a yellow hang tag showing version sha-de4d439" width="45%">
+  <img src="docs/images/hello-production.png" alt="hello in production: a green hang tag showing the same version" width="45%">
+</p>
 
 The page is styled as a hang tag: yellow in staging, green in production, grey when it runs outside the cluster. The big line is the version, and the barcode is drawn from it, so a new version looks different at a glance. When a new version starts answering, the page reloads by itself. You can watch a rollout without touching the browser.
 
@@ -21,7 +28,7 @@ The CI in `.github/workflows/ci.yaml` only runs hello's own tests; the rest is t
 2. A pull request from `staging` to `main` is the promotion. Once it's merged, CI copies the image staging was running into `charts/hello/values-production.yaml`. Nothing is rebuilt.
 3. Argo CD, in the lab cluster, notices each commit and rolls it out. CI never talks to the cluster.
 
-A push that only changes `charts/` builds nothing: Argo CD applies the new configuration as it is. That's also how rolling back works: revert the commit that changed the image, on `main` for production or on `staging` for staging.
+A push that only changes `charts/` or the documentation builds nothing: Argo CD applies the new configuration as it is. That's also how rolling back works: revert the commit that changed the image, on `main` for production or on `staging` for staging.
 
 ## Run it locally
 
