@@ -5,7 +5,7 @@
 The sample service of the [BACK lab](https://github.com/hvpaiva/back). It's a status page that shows which version is running, in which stage, on which pod, and whether it reaches the bucket the platform gave it.
 
 <p align="center">
-  <img src="docs/images/hello-staging.png" alt="hello in staging: an orange hang tag showing version sha-bfd05d7" width="45%">
+  <img src="docs/images/hello-staging.png" alt="hello in staging: an orange hang tag showing version sha-c94b363" width="45%">
   <img src="docs/images/hello-production.png" alt="hello in production: a green hang tag showing the same version" width="45%">
 </p>
 
