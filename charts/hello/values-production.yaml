@@ -1,4 +1,4 @@
 # What runs in production (the main branch). Merging staging into main
 # promotes the image staging was running; nothing is rebuilt.
-image: ghcr.io/hvpaiva/back-hello:sha-de4d439
+image: ghcr.io/hvpaiva/back-hello:sha-cfe7e0d
 size: medium
