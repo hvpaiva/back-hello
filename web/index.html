@@ -38,8 +38,10 @@
       --shadow: rgb(0 0 0 / 0.45);
     }
   }
-  .env-staging { --tag: #ef7a38; --tag-ink: #2a1206; }
-  .env-production { --tag: #178a79; --tag-ink: #f2fbf6; }
+  /* Card stock, not the mark's own colours: the stage still reads at a glance,
+     and the mark on the back no longer competes with the card behind it. */
+  .env-staging { --tag: #f0a868; --tag-ink: #3d2316; }
+  .env-production { --tag: #a6cdb9; --tag-ink: #1e3a30; }
 
   * { box-sizing: border-box; }
   body {
@@ -71,13 +73,80 @@
     margin-bottom: -30px;
     background: var(--string);
   }
+  /* Holds the tag and its back, so a click turns both together. The depth
+     sits on the outer box; only the inner one turns. */
+  .spin {
+    position: relative;
+    width: 100%;
+    perspective: 1400px;
+  }
+  .spin-inner {
+    position: relative;
+    width: 100%;
+    transform-style: preserve-3d;
+  }
   .tag {
     position: relative;
     width: 100%;
-    padding: 4rem 2.25rem 2.25rem;
+    container-type: inline-size;
+    padding: 4rem 2.25rem 3.5rem;
     background: var(--tag);
     color: var(--tag-ink);
     clip-path: polygon(13% 0, 87% 0, 100% 8%, 100% 100%, 0 100%, 0 8%);
+    backface-visibility: hidden;
+  }
+  .tag-back {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--tag-ink) 10%, var(--tag));
+    clip-path: polygon(13% 0, 87% 0, 100% 8%, 100% 100%, 0 100%, 0 8%);
+    transform: rotateY(180deg);
+    backface-visibility: hidden;
+  }
+  /* A stamp stuck on the back: dark, so the mark never sits on one of its own
+     four colours, and notched at the edge like a postage stamp. The dashes are
+     the stamp's own colour and the background stops at the padding edge, so
+     the card shows through the gaps between them. */
+  .tag-stamp {
+    --notch: 7px;
+    --step: 21px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 1.5rem 1.9rem;
+    background: #242a33;
+    transform: rotate(-4deg);
+    /* Half-circles bitten out of each edge: a postage stamp's perforation.
+       Without mask support it stays a plain rectangle, which is fine. */
+    mask:
+      radial-gradient(var(--notch) at 50% 0, #0000 98%, #000) 50% 0 / var(--step) 100% repeat-x,
+      radial-gradient(var(--notch) at 50% 100%, #0000 98%, #000) 50% 100% / var(--step) 100% repeat-x,
+      radial-gradient(var(--notch) at 0 50%, #0000 98%, #000) 0 50% / 100% var(--step) repeat-y,
+      radial-gradient(var(--notch) at 100% 50%, #0000 98%, #000) 100% 50% / 100% var(--step) repeat-y;
+    mask-composite: intersect;
+  }
+  .tag-back img { width: 150px; height: 150px; }
+  .tag-back-name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: #e2e8f0;
+  }
+  .tag-back::after {
+    content: "";
+    position: absolute;
+    top: 18px;
+    left: calc(50% - 12px);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--ground);
+    box-shadow: 0 0 0 5px rgb(255 255 255 / 0.16);
   }
   .eyelet {
     position: absolute;
@@ -103,11 +172,13 @@
   }
   .version {
     margin: 0.4rem 0 1.25rem;
-    font-size: clamp(3rem, 14vw, 5.75rem);
+    /* Sized against the card, not the window, and never wrapped: the script
+       below shrinks it until it fits, since every sha is a different width. */
+    font-size: clamp(2.75rem, 13cqw, 5.75rem);
     font-weight: 700;
     line-height: 0.95;
     letter-spacing: -0.01em;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
   }
   .barcode {
     display: block;
@@ -175,7 +246,9 @@
 <body>
 <main class="hanger">
   <span class="string" aria-hidden="true"></span>
-  <article class="tag env-{{.Env}}" aria-labelledby="version">
+  <div class="spin">
+  <div class="spin-inner env-{{.Env}}" id="spin">
+  <article class="tag" aria-labelledby="version">
     <span class="eyelet" aria-hidden="true"></span>
     <p class="heading"><span>{{.Service}}</span><span>[{{.Env}}]</span></p>
     <h1 class="version" id="version">{{.Version}}</h1>
@@ -192,12 +265,35 @@
       {{with .Bucket}}<div><dt>bucket</dt><dd>{{.Name}}<span class="state{{if not .Reachable}} down{{end}}" id="bucket-state">{{if .Reachable}}reachable{{else}}unreachable{{end}}</span></dd></div>{{end}}
     </dl>
   </article>
+  <span class="tag-back" aria-hidden="true">
+    <span class="tag-stamp">
+      <img src="/logo.png" alt="" width="150" height="150">
+      <span class="tag-back-name">BACK lab</span>
+    </span>
+  </span>
+  </div>
+  </div>
 </main>
 <p class="note" id="note">This page reloads by itself when a new version is deployed.</p>
 <p class="note alert" id="offline" hidden>Can't reach {{.Service}} right now. Trying again every 3 seconds.</p>
 <a class="lab" href="https://github.com/hvpaiva/back"><img src="/favicon.png" alt="" width="20" height="20">BACK lab</a>
 <script>
   const version = {{.Version}};
+
+  // Keep the version on one line whatever its letters measure. The fonts load
+  // late, so measure again once they have.
+  const versionEl = document.getElementById("version");
+  function fitVersion() {
+    versionEl.style.fontSize = "";
+    let size = parseFloat(getComputedStyle(versionEl).fontSize);
+    while (versionEl.scrollWidth > versionEl.clientWidth && size > 28) {
+      size -= 1;
+      versionEl.style.fontSize = size + "px";
+    }
+  }
+  fitVersion();
+  addEventListener("resize", fitVersion);
+  document.fonts?.ready.then(fitVersion);
   const uptime = document.getElementById("uptime");
   const started = new Date(uptime.dataset.started);
 
@@ -236,6 +332,33 @@
     }
   }
   setInterval(poll, 3000);
+
+  // Click the tag and it turns once around the string, overshoots the way a
+  // twisted cord unwinds, and settles back where it started.
+  const spin = document.getElementById("spin");
+  const stillness = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let spinning = false;
+  spin.addEventListener("click", () => {
+    if (spinning || stillness.matches) return;
+    if (String(window.getSelection() || "")) return; // the click ended a selection
+    spinning = true;
+    // Angles sampled from a spin losing speed to drag: a quarter turn in the
+    // first tenth, most of it by halfway, then it drifts past the finish and
+    // eases back, the way a twisted cord unwinds. The slight tilt is the
+    // pendulum the string still allows.
+    const turn = spin.animate([
+      { transform: "rotateY(0deg) rotateZ(0deg)", easing: "linear" },
+      { transform: "rotateY(-75deg) rotateZ(-0.8deg)", offset: 0.1, easing: "linear" },
+      { transform: "rotateY(-164deg) rotateZ(-1.4deg)", offset: 0.25, easing: "linear" },
+      { transform: "rotateY(-229deg) rotateZ(-1deg)", offset: 0.4, easing: "linear" },
+      { transform: "rotateY(-278deg) rotateZ(0.6deg)", offset: 0.55, easing: "linear" },
+      { transform: "rotateY(-314deg) rotateZ(0.9deg)", offset: 0.7, easing: "ease-out" },
+      { transform: "rotateY(-345deg) rotateZ(0.4deg)", offset: 0.84, easing: "ease-out" },
+      { transform: "rotateY(-368deg) rotateZ(-0.35deg)", offset: 0.94, easing: "ease-in-out" },
+      { transform: "rotateY(-360deg) rotateZ(0deg)" },
+    ], { duration: 1500 });
+    turn.onfinish = () => { spinning = false; };
+  });
 </script>
 </body>
 </html>

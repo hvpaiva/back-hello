@@ -106,7 +106,7 @@ func TestPage(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("got status %d", res.StatusCode)
 	}
-	for _, want := range []string{"sha-1a2b3c4", `class="tag env-staging"`, "hello-staging", "hello-5d8f7c9b6-x2k4p", "1m 30s"} {
+	for _, want := range []string{"sha-1a2b3c4", `class="spin-inner env-staging"`, "hello-staging", "hello-5d8f7c9b6-x2k4p", "1m 30s"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page is missing %q", want)
 		}
@@ -129,6 +129,13 @@ func TestFonts(t *testing.T) {
 
 func TestFavicon(t *testing.T) {
 	res, _ := get(t, "/favicon.png")
+	if res.StatusCode != http.StatusOK || res.Header.Get("Content-Type") != "image/png" {
+		t.Fatalf("got %d %q, want 200 image/png", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+}
+
+func TestLogo(t *testing.T) {
+	res, _ := get(t, "/logo.png")
 	if res.StatusCode != http.StatusOK || res.Header.Get("Content-Type") != "image/png" {
 		t.Fatalf("got %d %q, want 200 image/png", res.StatusCode, res.Header.Get("Content-Type"))
 	}
