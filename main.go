@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -38,36 +39,52 @@ type Info struct {
 	Pod       string        `json:"pod"`
 	Namespace string        `json:"namespace"`
 	Node      string        `json:"node"`
+	Spec      Spec          `json:"spec"`
 	Started   time.Time     `json:"started"`
 	Bucket    *BucketStatus `json:"bucket,omitempty"`
+}
+
+// Spec is what this service asked the platform for, as the platform resolved
+// it. The page shows it, so a change to values.yaml is visible in the browser
+// without reading any YAML.
+type Spec struct {
+	Size        string `json:"size"`
+	Replicas    int    `json:"replicas"`
+	CPU         string `json:"cpu"`
+	Memory      string `json:"memory"`
+	MemoryLimit string `json:"memoryLimit,omitempty"`
+	Public      bool   `json:"public"`
 }
 
 // BucketStatus says whether the service reaches its bucket.
 type BucketStatus struct {
 	Name      string `json:"name"`
+	Versioned bool   `json:"versioned"`
 	Reachable bool   `json:"reachable"`
 	Error     string `json:"error,omitempty"`
 }
 
 type bucketProbe struct {
-	name  string
-	check func(context.Context) error
+	name      string
+	versioned bool
+	check     func(context.Context) error
 }
 
 func newBucketProbe(ctx context.Context, name string) *bucketProbe {
 	if name == "" {
 		return nil
 	}
+	versioned := os.Getenv("BUCKET_VERSIONING") == "true"
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		return &bucketProbe{name: name, check: func(context.Context) error { return err }}
+		return &bucketProbe{name: name, versioned: versioned, check: func(context.Context) error { return err }}
 	}
 	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
 		// LocalStack serves buckets at <endpoint>/<bucket>.
 		o.UsePathStyle = cfg.BaseEndpoint != nil
 		o.RetryMaxAttempts = 1
 	})
-	return &bucketProbe{name: name, check: func(ctx context.Context) error {
+	return &bucketProbe{name: name, versioned: versioned, check: func(ctx context.Context) error {
 		_, err := client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(name)})
 		return err
 	}}
@@ -79,7 +96,7 @@ func (p *bucketProbe) status(ctx context.Context) *BucketStatus {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	s := &BucketStatus{Name: p.name, Reachable: true}
+	s := &BucketStatus{Name: p.name, Versioned: p.versioned, Reachable: true}
 	if err := p.check(ctx); err != nil {
 		s.Reachable, s.Error = false, err.Error()
 	}
@@ -130,6 +147,26 @@ func env(key, fallback string) string {
 	return fallback
 }
 
+func envInt(key string, fallback int) int {
+	if n, err := strconv.Atoi(os.Getenv(key)); err == nil {
+		return n
+	}
+	return fallback
+}
+
+// newSpec reads what the platform's chart resolved for this service. Outside a
+// cluster nothing is set, and the page simply has nothing to show.
+func newSpec() Spec {
+	return Spec{
+		Size:        os.Getenv("APP_SIZE"),
+		Replicas:    envInt("APP_REPLICAS", 0),
+		CPU:         os.Getenv("APP_CPU"),
+		Memory:      os.Getenv("APP_MEMORY"),
+		MemoryLimit: os.Getenv("APP_MEMORY_LIMIT"),
+		Public:      os.Getenv("APP_PUBLIC") == "true",
+	}
+}
+
 func newInfo(now time.Time) Info {
 	host, _ := os.Hostname()
 	return Info{
@@ -139,6 +176,7 @@ func newInfo(now time.Time) Info {
 		Pod:       env("POD_NAME", host),
 		Namespace: os.Getenv("POD_NAMESPACE"),
 		Node:      os.Getenv("NODE_NAME"),
+		Spec:      newSpec(),
 		Started:   now,
 	}
 }
