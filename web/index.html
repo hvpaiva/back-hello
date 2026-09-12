@@ -99,17 +99,26 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1.25rem;
-    /* The back is printed dark, whatever the stage: on the stage's own colour
-       the mark would sit on one of its own four colours and disappear. */
-    background: #1d2530;
+    background: color-mix(in srgb, var(--tag-ink) 10%, var(--tag));
     clip-path: polygon(13% 0, 87% 0, 100% 8%, 100% 100%, 0 100%, 0 8%);
     transform: rotateY(180deg);
     backface-visibility: hidden;
   }
-  .tag-back img { width: 176px; height: 176px; }
+  /* The mark rides a black band across the back, the way a stamp sits on a
+     ticket. On the stage's own colour it would sit on one of its own four
+     colours and dissolve into the card. */
+  .tag-band {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    padding: 1.25rem 1.5rem;
+    background: #11151b;
+  }
+  .tag-back img { width: 120px; height: 120px; }
   .tag-back-name {
-    font-size: 2rem;
+    font-size: 1.75rem;
     font-weight: 700;
     letter-spacing: 0.12em;
     color: #c3ccd8;
@@ -241,8 +250,10 @@
     </dl>
   </article>
   <span class="tag-back" aria-hidden="true">
-    <img src="/logo.png" alt="" width="176" height="176">
-    <span class="tag-back-name">BACK lab</span>
+    <span class="tag-band">
+      <img src="/logo.png" alt="" width="120" height="120">
+      <span class="tag-back-name">BACK lab</span>
+    </span>
   </span>
   </div>
   </div>
