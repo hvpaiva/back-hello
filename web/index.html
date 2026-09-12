@@ -38,8 +38,10 @@
       --shadow: rgb(0 0 0 / 0.45);
     }
   }
-  .env-staging { --tag: #ef7a38; --tag-ink: #2a1206; }
-  .env-production { --tag: #178a79; --tag-ink: #f2fbf6; }
+  /* Card stock, not the mark's own colours: the stage still reads at a glance,
+     and the mark on the back no longer competes with the card behind it. */
+  .env-staging { --tag: #f0a868; --tag-ink: #3d2316; }
+  .env-production { --tag: #a6cdb9; --tag-ink: #1e3a30; }
 
   * { box-sizing: border-box; }
   body {
@@ -104,24 +106,35 @@
     transform: rotateY(180deg);
     backface-visibility: hidden;
   }
-  /* The mark rides a black band across the back, the way a stamp sits on a
-     ticket. On the stage's own colour it would sit on one of its own four
-     colours and dissolve into the card. */
-  .tag-band {
-    width: 100%;
+  /* A stamp stuck on the back: dark, so the mark never sits on one of its own
+     four colours, and notched at the edge like a postage stamp. The dashes are
+     the stamp's own colour and the background stops at the padding edge, so
+     the card shows through the gaps between them. */
+  .tag-stamp {
+    --notch: 7px;
+    --step: 21px;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 1.25rem;
-    padding: 1.25rem 1.5rem;
-    background: #11151b;
+    gap: 0.6rem;
+    padding: 1.5rem 1.9rem;
+    background: #242a33;
+    transform: rotate(-4deg);
+    /* Half-circles bitten out of each edge: a postage stamp's perforation.
+       Without mask support it stays a plain rectangle, which is fine. */
+    mask:
+      radial-gradient(var(--notch) at 50% 0, #0000 98%, #000) 50% 0 / var(--step) 100% repeat-x,
+      radial-gradient(var(--notch) at 50% 100%, #0000 98%, #000) 50% 100% / var(--step) 100% repeat-x,
+      radial-gradient(var(--notch) at 0 50%, #0000 98%, #000) 0 50% / 100% var(--step) repeat-y,
+      radial-gradient(var(--notch) at 100% 50%, #0000 98%, #000) 100% 50% / 100% var(--step) repeat-y;
+    mask-composite: intersect;
   }
-  .tag-back img { width: 120px; height: 120px; }
+  .tag-back img { width: 150px; height: 150px; }
   .tag-back-name {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: 0.12em;
-    color: #c3ccd8;
+    color: #e2e8f0;
   }
   .tag-back::after {
     content: "";
@@ -250,8 +263,8 @@
     </dl>
   </article>
   <span class="tag-back" aria-hidden="true">
-    <span class="tag-band">
-      <img src="/logo.png" alt="" width="120" height="120">
+    <span class="tag-stamp">
+      <img src="/logo.png" alt="" width="150" height="150">
       <span class="tag-back-name">BACK lab</span>
     </span>
   </span>
