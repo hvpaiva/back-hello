@@ -207,6 +207,44 @@
   .facts .state { margin-left: 0.4rem; font-weight: 500; opacity: 0.78; }
   .facts .state.down { opacity: 1; font-weight: 700; text-decoration: underline wavy; }
 
+  /* One chip per pod that has answered; the one that just did is darker, and a
+     pod still on the old version fades. */
+  .fleet { display: inline-flex; flex-wrap: wrap; gap: 0.35rem; vertical-align: baseline; }
+  .chip {
+    padding: 0.08em 0.55em;
+    border-radius: 999px;
+    font-size: 0.82em;
+    background: color-mix(in srgb, var(--tag-ink) 13%, transparent);
+  }
+  .chip.here { background: color-mix(in srgb, var(--tag-ink) 28%, transparent); }
+  .chip.other { opacity: 0.5; }
+
+  /* One hole per declared replica, filled as that many pods answer. */
+  .pips { display: inline-flex; gap: 0.32rem; vertical-align: baseline; }
+  .pip {
+    width: 0.6em;
+    height: 0.6em;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, var(--tag-ink) 45%, transparent);
+  }
+  .pip.on { background: var(--tag-ink); border-color: var(--tag-ink); }
+
+  .stamp {
+    padding: 0.02em 0.45em;
+    border: 2px solid color-mix(in srgb, var(--tag-ink) 55%, transparent);
+    border-radius: 3px;
+    font-size: 0.78em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .quiet { font-weight: 500; opacity: 0.72; }
+  .footnote {
+    margin: 1.1rem 0 0;
+    font-size: 1.05rem;
+    font-weight: 500;
+    opacity: 0.68;
+  }
+
   .note {
     margin: 2.25rem 0 0;
     max-width: 34rem;
@@ -258,12 +296,12 @@
     </svg>
     {{end}}
     <dl class="facts">
-      {{with .Namespace}}<div><dt>namespace</dt><dd>{{.}}</dd></div>{{end}}
-      <div><dt>{{if .Namespace}}pod{{else}}host{{end}}</dt><dd id="pod">{{.Pod}}</dd></div>
-      {{with .Node}}<div><dt>node</dt><dd>{{.}}</dd></div>{{end}}
-      <div><dt>up for</dt><dd id="uptime" data-started="{{.Started.UTC.Format "2006-01-02T15:04:05Z"}}">{{.Uptime .Now}}</dd></div>
-      {{with .Bucket}}<div><dt>bucket</dt><dd>{{.Name}}<span class="state{{if not .Reachable}} down{{end}}" id="bucket-state">{{if .Reachable}}reachable{{else}}unreachable{{end}}</span></dd></div>{{end}}
+      {{if .Spec.Replicas}}<div><dt>replicas</dt><dd><span class="pips" id="pips" data-declared="{{.Spec.Replicas}}"></span></dd></div>{{end}}
+      <div><dt>{{if .Namespace}}fleet{{else}}host{{end}}</dt><dd><span class="fleet" id="fleet" data-pod="{{.Pod}}" data-version="{{.Version}}"></span></dd></div>
+      {{if .Spec.Size}}<div><dt>size</dt><dd><span class="stamp">{{.Spec.Size}}</span> <span class="quiet">{{.Spec.CPU}} cpu · {{.Spec.Memory}}</span></dd></div>{{end}}
+      {{with .Bucket}}<div><dt>bucket</dt><dd>{{.Name}}{{if .Versioned}} <span class="stamp">versioned</span>{{end}}<span class="state{{if not .Reachable}} down{{end}}" id="bucket-state">{{if .Reachable}}reachable{{else}}unreachable{{end}}</span></dd></div>{{end}}
     </dl>
+    <p class="footnote">{{with .Namespace}}{{.}}{{end}}{{with .Node}} · {{.}}{{end}} · up for <span id="uptime" data-started="{{.Started.UTC.Format "2006-01-02T15:04:05Z"}}">{{.Uptime .Now}}</span></p>
   </article>
   <span class="tag-back" aria-hidden="true">
     <span class="tag-stamp">
@@ -297,6 +335,45 @@
   const uptime = document.getElementById("uptime");
   const started = new Date(uptime.dataset.started);
 
+  // The fleet assembles itself: every poll is answered by one pod, so over a
+  // few seconds each replica shows up. A pod leaves after a minute of silence,
+  // which is what the end of a rollout looks like from here.
+  const fleetEl = document.getElementById("fleet");
+  const pipsEl = document.getElementById("pips");
+  const seen = new Map();
+  const silence = 60000;
+
+  function sawPod(pod, ran) {
+    if (!pod) return;
+    seen.set(pod, { version: ran, at: Date.now() });
+    for (const [name, entry] of seen) {
+      if (Date.now() - entry.at > silence) seen.delete(name);
+    }
+    drawFleet(pod);
+  }
+
+  function drawFleet(answering) {
+    const versions = new Set([...seen.values()].map((e) => e.version));
+    fleetEl.replaceChildren(...[...seen].map(([name, entry]) => {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      if (name === answering) chip.classList.add("here");
+      if (versions.size > 1 && entry.version !== version) chip.classList.add("other");
+      chip.title = versions.size > 1 ? `${name} · ${entry.version}` : name;
+      chip.textContent = name.split("-").pop();
+      return chip;
+    }));
+    if (!pipsEl) return;
+    const declared = Number(pipsEl.dataset.declared || 0);
+    pipsEl.replaceChildren(...Array.from({ length: Math.max(declared, seen.size) }, (_, i) => {
+      const pip = document.createElement("span");
+      pip.className = i < seen.size ? "pip on" : "pip";
+      return pip;
+    }));
+  }
+
+  sawPod(fleetEl.dataset.pod, fleetEl.dataset.version);
+
   function formatUptime(ms) {
     const s = Math.max(0, Math.floor(ms / 1000));
     const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, r = s % 60;
@@ -320,7 +397,7 @@
       document.getElementById("offline").hidden = true;
       document.getElementById("note").hidden = false;
       if (info.version !== version && !shown().includes(info.version)) { location.reload(); return; }
-      if (info.version === version) document.getElementById("pod").textContent = info.pod;
+      sawPod(info.pod, info.version);
       const state = document.getElementById("bucket-state");
       if (state && info.bucket) {
         state.textContent = info.bucket.reachable ? "reachable" : "unreachable";

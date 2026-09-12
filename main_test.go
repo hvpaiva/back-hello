@@ -21,6 +21,7 @@ func testInfo() Info {
 		Pod:       "hello-5d8f7c9b6-x2k4p",
 		Namespace: "hello-staging",
 		Node:      "back-control-plane",
+		Spec:      Spec{Size: "medium", Replicas: 2, CPU: "100m", Memory: "128Mi", Public: true},
 		Started:   time.Now().Add(-90 * time.Second),
 	}
 }
@@ -106,7 +107,10 @@ func TestPage(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("got status %d", res.StatusCode)
 	}
-	for _, want := range []string{"sha-1a2b3c4", `class="spin-inner env-staging"`, "hello-staging", "hello-5d8f7c9b6-x2k4p", "1m 30s"} {
+	for _, want := range []string{
+		"sha-1a2b3c4", `class="spin-inner env-staging"`, "hello-staging", "hello-5d8f7c9b6-x2k4p", "1m 30s",
+		`data-declared="2"`, ">medium<", "100m cpu",
+	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page is missing %q", want)
 		}
@@ -138,6 +142,26 @@ func TestLogo(t *testing.T) {
 	res, _ := get(t, "/logo.png")
 	if res.StatusCode != http.StatusOK || res.Header.Get("Content-Type") != "image/png" {
 		t.Fatalf("got %d %q, want 200 image/png", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+}
+
+func TestSpec(t *testing.T) {
+	t.Setenv("APP_SIZE", "medium")
+	t.Setenv("APP_REPLICAS", "2")
+	t.Setenv("APP_CPU", "100m")
+	t.Setenv("APP_MEMORY", "128Mi")
+	t.Setenv("APP_MEMORY_LIMIT", "256Mi")
+	t.Setenv("APP_PUBLIC", "true")
+	want := Spec{Size: "medium", Replicas: 2, CPU: "100m", Memory: "128Mi", MemoryLimit: "256Mi", Public: true}
+	if got := newSpec(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("spec: got %+v, want %+v", got, want)
+	}
+}
+
+// Outside a cluster nothing is declared, and the page shows none of it.
+func TestSpecOutsideCluster(t *testing.T) {
+	if got := newSpec(); got.Replicas != 0 || got.Size != "" {
+		t.Fatalf("spec outside a cluster: got %+v", got)
 	}
 }
 
