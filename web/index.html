@@ -88,7 +88,8 @@
   .tag {
     position: relative;
     width: 100%;
-    padding: 4rem 2.25rem 2.25rem;
+    container-type: inline-size;
+    padding: 4rem 2.25rem 3.5rem;
     background: var(--tag);
     color: var(--tag-ink);
     clip-path: polygon(13% 0, 87% 0, 100% 8%, 100% 100%, 0 100%, 0 8%);
@@ -171,11 +172,13 @@
   }
   .version {
     margin: 0.4rem 0 1.25rem;
-    font-size: clamp(3rem, 14vw, 5.75rem);
+    /* Sized against the card, not the window, and never wrapped: the script
+       below shrinks it until it fits, since every sha is a different width. */
+    font-size: clamp(2.75rem, 13cqw, 5.75rem);
     font-weight: 700;
     line-height: 0.95;
     letter-spacing: -0.01em;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
   }
   .barcode {
     display: block;
@@ -276,6 +279,21 @@
 <a class="lab" href="https://github.com/hvpaiva/back"><img src="/favicon.png" alt="" width="20" height="20">BACK lab</a>
 <script>
   const version = {{.Version}};
+
+  // Keep the version on one line whatever its letters measure. The fonts load
+  // late, so measure again once they have.
+  const versionEl = document.getElementById("version");
+  function fitVersion() {
+    versionEl.style.fontSize = "";
+    let size = parseFloat(getComputedStyle(versionEl).fontSize);
+    while (versionEl.scrollWidth > versionEl.clientWidth && size > 28) {
+      size -= 1;
+      versionEl.style.fontSize = size + "px";
+    }
+  }
+  fitVersion();
+  addEventListener("resize", fitVersion);
+  document.fonts?.ready.then(fitVersion);
   const uptime = document.getElementById("uptime");
   const started = new Date(uptime.dataset.started);
 
