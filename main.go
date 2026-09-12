@@ -150,6 +150,9 @@ func routes(info Info, bucket *bucketProbe) http.Handler {
 	mux.HandleFunc("GET /favicon.png", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFileFS(w, r, web, "web/favicon.png")
 	})
+	mux.HandleFunc("GET /logo.png", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFileFS(w, r, web, "web/logo.png")
+	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("ok\n"))
 	})
