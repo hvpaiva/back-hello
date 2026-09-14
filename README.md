@@ -2,18 +2,18 @@
 
 # hello
 
-The sample service of the [BACK lab](https://github.com/hvpaiva/back). It's a status page that shows which version is running, in which stage, on which pod, and whether it reaches the bucket the platform gave it.
+The sample service of the [BACK lab](https://github.com/hvpaiva/back). It's a status page that shows which version is running, in which stage, on which pod, and whether it reaches the bucket and the database the platform gave it.
 
 <p align="center">
   <img src="docs/images/hello-staging.png" alt="hello in staging: an orange hang tag showing version sha-8fdd383" width="45%">
   <img src="docs/images/hello-production.png" alt="hello in production: a green hang tag showing the same version" width="45%">
 </p>
 
-The page is styled as a hang tag: orange in staging, green in production, grey when it runs outside the cluster. The big line is the version, and the barcode is drawn from it, so a new version looks different at a glance. Under it is what the platform gave the service: one hole per replica it declared, a chip for each pod that has answered, the size it asked for with the cpu and memory that came with it, and its bucket. When a new version starts answering, the page reloads by itself. You can watch a rollout without touching the browser, and a change to `charts/hello/values-*.yaml` shows up here too.
+The page is styled as a hang tag: orange in staging, green in production, grey when it runs outside the cluster. The big line is the version, and the barcode is drawn from it, so a new version looks different at a glance. Under it is what the platform gave the service: one hole per replica it declared, a chip for each pod that has answered, the size it asked for with the cpu and memory that came with it, its bucket and its database. When a new version starts answering, the page reloads by itself. You can watch a rollout without touching the browser, and a change to `charts/hello/values-*.yaml` shows up here too.
 
 ## How it ships
 
-This repository holds the code and the service's deploy configuration, in `charts/hello/`. The chart that reads it belongs to the platform ([`charts/app`](https://github.com/hvpaiva/back/tree/main/charts/app) in the lab repository), so the service only says what it needs: its name, team, port, size, whether it's public, and a bucket (with versioning in production). The platform creates the bucket and hands hello its details.
+This repository holds the code and the service's deploy configuration, in `charts/hello/`. The chart that reads it belongs to the platform ([`charts/app`](https://github.com/hvpaiva/back/tree/main/charts/app) in the lab repository), so the service only says what it needs: its name, team, port, size, whether it's public, a bucket (with versioning in production) and a database (medium in production). The platform creates both and hands hello their details.
 
 Each stage is a branch:
 
@@ -47,6 +47,6 @@ just test
 | `GET /api/info` | The same facts as JSON |
 | `GET /healthz` | `ok`, for the liveness and readiness probes |
 
-It listens on `PORT` (8080 by default) and reads `APP_ENV`, plus `POD_NAME`, `POD_NAMESPACE` and `NODE_NAME`, which the platform's chart fills in from the Kubernetes downward API. When `BUCKET_NAME` is set, it checks that bucket on every request with the AWS SDK, which reads `AWS_REGION`, `AWS_ENDPOINT_URL` and the credentials from the environment; the platform provides all of them.
+It listens on `PORT` (8080 by default) and reads `APP_ENV`, plus `POD_NAME`, `POD_NAMESPACE` and `NODE_NAME`, which the platform's chart fills in from the Kubernetes downward API. When `BUCKET_NAME` is set, it checks that bucket on every request with the AWS SDK, which reads `AWS_REGION`, `AWS_ENDPOINT_URL` and the credentials from the environment. When `PGHOST` is set, it pings the database on every request with pgx, which reads `PGPORT`, `PGDATABASE`, `PGUSER` and `PGPASSWORD` from the environment the same way. The platform provides all of them.
 
 The font is Barlow Condensed, under the SIL Open Font License (`web/fonts/OFL.txt`).

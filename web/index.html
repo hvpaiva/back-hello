@@ -300,6 +300,7 @@
       <div><dt>{{if .Namespace}}fleet{{else}}host{{end}}</dt><dd><span class="fleet" id="fleet" data-pod="{{.Pod}}" data-version="{{.Version}}" data-started="{{.Started.UTC.Format "2006-01-02T15:04:05Z"}}"></span></dd></div>
       {{if .Spec.Size}}<div><dt>size</dt><dd><span class="stamp">{{.Spec.Size}}</span> <span class="quiet">{{.Spec.CPU}} cpu · {{.Spec.Memory}}</span></dd></div>{{end}}
       {{with .Bucket}}<div><dt>bucket</dt><dd>{{.Name}}{{if .Versioned}} <span class="stamp">versioned</span>{{end}}<span class="state{{if not .Reachable}} down{{end}}" id="bucket-state">{{if .Reachable}}reachable{{else}}unreachable{{end}}</span></dd></div>{{end}}
+      {{with .Database}}<div><dt>database</dt><dd>{{.Host}}{{with .Size}} <span class="stamp">{{.}}</span>{{end}}<span class="state{{if not .Reachable}} down{{end}}" id="database-state">{{if .Reachable}}reachable{{else}}unreachable{{end}}</span></dd></div>{{end}}
     </dl>
     <p class="footnote">{{with .Namespace}}{{.}}{{end}}{{with .Node}} · {{.}}{{end}}</p>
   </article>
@@ -388,6 +389,13 @@
   }
   try { sessionStorage.setItem("shown", JSON.stringify([...new Set([...shown(), version])])); } catch {}
 
+  function showReach(id, status) {
+    const el = document.getElementById(id);
+    if (!el || !status) return;
+    el.textContent = status.reachable ? "reachable" : "unreachable";
+    el.classList.toggle("down", !status.reachable);
+  }
+
   async function poll() {
     try {
       const res = await fetch("/api/info", { cache: "no-store" });
@@ -398,11 +406,8 @@
       if (info.version !== version && !shown().includes(info.version)) { location.reload(); return; }
       sawPod(info.pod, info.version, info.started);
       if (!seen.has(fleetEl.dataset.pod)) { location.reload(); return; }
-      const state = document.getElementById("bucket-state");
-      if (state && info.bucket) {
-        state.textContent = info.bucket.reachable ? "reachable" : "unreachable";
-        state.classList.toggle("down", !info.bucket.reachable);
-      }
+      showReach("bucket-state", info.bucket);
+      showReach("database-state", info.database);
     } catch {
       document.getElementById("offline").hidden = false;
       document.getElementById("note").hidden = true;

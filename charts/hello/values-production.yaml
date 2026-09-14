@@ -3,3 +3,5 @@ image: ghcr.io/hvpaiva/back-hello:sha-7749c6e
 size: medium
 bucket:
   versioning: true
+database:
+  size: medium

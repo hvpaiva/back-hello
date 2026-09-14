@@ -28,12 +28,12 @@ func testInfo() Info {
 
 func get(t *testing.T, path string) (*http.Response, string) {
 	t.Helper()
-	return getWithBucket(t, path, nil)
+	return getWith(t, path, nil, nil)
 }
 
-func getWithBucket(t *testing.T, path string, bucket *bucketProbe) (*http.Response, string) {
+func getWith(t *testing.T, path string, bucket *bucketProbe, database *databaseProbe) (*http.Response, string) {
 	t.Helper()
-	srv := httptest.NewServer(routes(testInfo(), bucket))
+	srv := httptest.NewServer(routes(testInfo(), bucket, database))
 	defer srv.Close()
 	res, err := http.Get(srv.URL + path)
 	if err != nil {
@@ -69,6 +69,9 @@ func TestInfoAPI(t *testing.T) {
 	if got.Bucket != nil {
 		t.Fatalf("a service without a bucket reported one: %+v", got.Bucket)
 	}
+	if got.Database != nil {
+		t.Fatalf("a service without a database reported one: %+v", got.Database)
+	}
 }
 
 func TestBucket(t *testing.T) {
@@ -82,7 +85,7 @@ func TestBucket(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			probe := &bucketProbe{name: "hello-staging-hello", check: func(context.Context) error { return tc.err }}
-			_, body := getWithBucket(t, "/api/info", probe)
+			_, body := getWith(t, "/api/info", probe, nil)
 			var got Info
 			if err := json.Unmarshal([]byte(body), &got); err != nil {
 				t.Fatal(err)
@@ -94,11 +97,48 @@ func TestBucket(t *testing.T) {
 			if !reflect.DeepEqual(got.Bucket, want) {
 				t.Fatalf("bucket: got %+v, want %+v", got.Bucket, want)
 			}
-			_, page := getWithBucket(t, "/", probe)
+			_, page := getWith(t, "/", probe, nil)
 			if !strings.Contains(page, "hello-staging-hello") || !strings.Contains(page, ">"+tc.state+"<") {
 				t.Errorf("page doesn't show the bucket as %s", tc.state)
 			}
 		})
+	}
+}
+
+func TestDatabase(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		err   error
+		state string
+	}{
+		{"reachable", nil, "reachable"},
+		{"unreachable", errors.New("connection refused"), "unreachable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			probe := &databaseProbe{host: "hello-postgres-rw", size: "small", check: func(context.Context) error { return tc.err }}
+			_, body := getWith(t, "/api/info", nil, probe)
+			var got Info
+			if err := json.Unmarshal([]byte(body), &got); err != nil {
+				t.Fatal(err)
+			}
+			want := &DatabaseStatus{Host: "hello-postgres-rw", Size: "small", Reachable: tc.err == nil}
+			if tc.err != nil {
+				want.Error = tc.err.Error()
+			}
+			if !reflect.DeepEqual(got.Database, want) {
+				t.Fatalf("database: got %+v, want %+v", got.Database, want)
+			}
+			_, page := getWith(t, "/", nil, probe)
+			if !strings.Contains(page, "hello-postgres-rw") || !strings.Contains(page, ">"+tc.state+"<") {
+				t.Errorf("page doesn't show the database as %s", tc.state)
+			}
+		})
+	}
+}
+
+func TestDatabaseOutsideCluster(t *testing.T) {
+	if probe := newDatabaseProbe(context.Background(), ""); probe != nil {
+		t.Fatalf("a probe without a host: %+v", probe)
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // version is set at build time: go build -ldflags "-X main.version=sha-1a2b3c4".
@@ -32,15 +33,16 @@ var page = template.Must(template.ParseFS(web, "web/index.html"))
 
 // Info is what the page shows, also served as JSON at /api/info.
 type Info struct {
-	Service   string        `json:"service"`
-	Version   string        `json:"version"`
-	Env       string        `json:"env"`
-	Pod       string        `json:"pod"`
-	Namespace string        `json:"namespace"`
-	Node      string        `json:"node"`
-	Spec      Spec          `json:"spec"`
-	Started   time.Time     `json:"started"`
-	Bucket    *BucketStatus `json:"bucket,omitempty"`
+	Service   string          `json:"service"`
+	Version   string          `json:"version"`
+	Env       string          `json:"env"`
+	Pod       string          `json:"pod"`
+	Namespace string          `json:"namespace"`
+	Node      string          `json:"node"`
+	Spec      Spec            `json:"spec"`
+	Started   time.Time       `json:"started"`
+	Bucket    *BucketStatus   `json:"bucket,omitempty"`
+	Database  *DatabaseStatus `json:"database,omitempty"`
 }
 
 // Spec is what this service asked the platform for, as the platform resolved
@@ -96,6 +98,46 @@ func (p *bucketProbe) status(ctx context.Context) *BucketStatus {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	s := &BucketStatus{Name: p.name, Versioned: p.versioned, Reachable: true}
+	if err := p.check(ctx); err != nil {
+		s.Reachable, s.Error = false, err.Error()
+	}
+	return s
+}
+
+// DatabaseStatus says whether the service reaches its database.
+type DatabaseStatus struct {
+	Host      string `json:"host"`
+	Size      string `json:"size,omitempty"`
+	Reachable bool   `json:"reachable"`
+	Error     string `json:"error,omitempty"`
+}
+
+type databaseProbe struct {
+	host  string
+	size  string
+	check func(context.Context) error
+}
+
+func newDatabaseProbe(ctx context.Context, host string) *databaseProbe {
+	if host == "" {
+		return nil
+	}
+	size := os.Getenv("DATABASE_SIZE")
+	// An empty connection string: pgx reads PGHOST, PGPORT, PGDATABASE, PGUSER and PGPASSWORD itself.
+	pool, err := pgxpool.New(ctx, "")
+	if err != nil {
+		return &databaseProbe{host: host, size: size, check: func(context.Context) error { return err }}
+	}
+	return &databaseProbe{host: host, size: size, check: pool.Ping}
+}
+
+func (p *databaseProbe) status(ctx context.Context) *DatabaseStatus {
+	if p == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	s := &DatabaseStatus{Host: p.host, Size: p.size, Reachable: true}
 	if err := p.check(ctx); err != nil {
 		s.Reachable, s.Error = false, err.Error()
 	}
@@ -166,7 +208,7 @@ func newInfo(now time.Time) Info {
 	}
 }
 
-func routes(info Info, bucket *bucketProbe) http.Handler {
+func routes(info Info, bucket *bucketProbe, database *databaseProbe) http.Handler {
 	mux := http.NewServeMux()
 	fonts, _ := fs.Sub(web, "web")
 	mux.Handle("GET /fonts/", http.FileServerFS(fonts))
@@ -182,6 +224,7 @@ func routes(info Info, bucket *bucketProbe) http.Handler {
 	current := func(r *http.Request) Info {
 		now := info
 		now.Bucket = bucket.status(r.Context())
+		now.Database = database.status(r.Context())
 		return now
 	}
 	mux.HandleFunc("GET /api/info", func(w http.ResponseWriter, r *http.Request) {
@@ -203,9 +246,10 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	info := newInfo(time.Now())
 	bucket := newBucketProbe(context.Background(), os.Getenv("BUCKET_NAME"))
+	database := newDatabaseProbe(context.Background(), os.Getenv("PGHOST"))
 	srv := &http.Server{
 		Addr:              ":" + env("PORT", "8080"),
-		Handler:           routes(info, bucket),
+		Handler:           routes(info, bucket, database),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -219,7 +263,8 @@ func main() {
 		_ = srv.Shutdown(shutdown)
 	}()
 
-	slog.Info("listening", "addr", srv.Addr, "version", info.Version, "env", info.Env, "bucket", os.Getenv("BUCKET_NAME"))
+	slog.Info("listening", "addr", srv.Addr, "version", info.Version, "env", info.Env,
+		"bucket", os.Getenv("BUCKET_NAME"), "database", os.Getenv("PGHOST"))
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server stopped", "err", err)
 		os.Exit(1)
