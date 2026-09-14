@@ -108,7 +108,7 @@ func TestPage(t *testing.T) {
 		t.Fatalf("got status %d", res.StatusCode)
 	}
 	for _, want := range []string{
-		"sha-1a2b3c4", `class="spin-inner env-staging"`, "hello-staging", "hello-5d8f7c9b6-x2k4p", "1m 30s",
+		"sha-1a2b3c4", `class="spin-inner env-staging"`, "hello-staging", "hello-5d8f7c9b6-x2k4p", "data-started=",
 		`data-declared="2"`, ">medium<", "100m cpu",
 	} {
 		if !strings.Contains(body, want) {
@@ -172,18 +172,5 @@ func TestBarcodeFollowsVersion(t *testing.T) {
 	}
 	if reflect.DeepEqual(a.Barcode(), b.Barcode()) {
 		t.Error("different versions should draw different barcodes")
-	}
-}
-
-func TestUptime(t *testing.T) {
-	now := time.Now()
-	for d, want := range map[time.Duration]string{
-		45 * time.Second:              "45s",
-		3*time.Minute + 5*time.Second: "3m 5s",
-		2*time.Hour + 7*time.Minute:   "2h 7m",
-	} {
-		if got := (Info{Started: now.Add(-d)}).Uptime(now); got != want {
-			t.Errorf("uptime after %v: got %q, want %q", d, got, want)
-		}
 	}
 }

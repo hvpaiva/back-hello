@@ -297,11 +297,11 @@
     {{end}}
     <dl class="facts">
       {{if .Spec.Replicas}}<div><dt>replicas</dt><dd><span class="pips" id="pips" data-declared="{{.Spec.Replicas}}"></span></dd></div>{{end}}
-      <div><dt>{{if .Namespace}}fleet{{else}}host{{end}}</dt><dd><span class="fleet" id="fleet" data-pod="{{.Pod}}" data-version="{{.Version}}"></span></dd></div>
+      <div><dt>{{if .Namespace}}fleet{{else}}host{{end}}</dt><dd><span class="fleet" id="fleet" data-pod="{{.Pod}}" data-version="{{.Version}}" data-started="{{.Started.UTC.Format "2006-01-02T15:04:05Z"}}"></span></dd></div>
       {{if .Spec.Size}}<div><dt>size</dt><dd><span class="stamp">{{.Spec.Size}}</span> <span class="quiet">{{.Spec.CPU}} cpu · {{.Spec.Memory}}</span></dd></div>{{end}}
       {{with .Bucket}}<div><dt>bucket</dt><dd>{{.Name}}{{if .Versioned}} <span class="stamp">versioned</span>{{end}}<span class="state{{if not .Reachable}} down{{end}}" id="bucket-state">{{if .Reachable}}reachable{{else}}unreachable{{end}}</span></dd></div>{{end}}
     </dl>
-    <p class="footnote">{{with .Namespace}}{{.}}{{end}}{{with .Node}} · {{.}}{{end}} · up for <span id="uptime" data-started="{{.Started.UTC.Format "2006-01-02T15:04:05Z"}}">{{.Uptime .Now}}</span></p>
+    <p class="footnote">{{with .Namespace}}{{.}}{{end}}{{with .Node}} · {{.}}{{end}}</p>
   </article>
   <span class="tag-back" aria-hidden="true">
     <span class="tag-stamp">
@@ -312,7 +312,7 @@
   </div>
   </div>
 </main>
-<p class="note" id="note">This page reloads by itself when a new version is deployed.</p>
+<p class="note" id="note">This page follows the pods as they answer, and reloads itself once the one that drew it is gone.</p>
 <p class="note alert" id="offline" hidden>Can't reach {{.Service}} right now. Trying again every 3 seconds.</p>
 <a class="lab" href="https://github.com/hvpaiva/back"><img src="/favicon.png" alt="" width="20" height="20">BACK lab</a>
 <script>
@@ -332,27 +332,27 @@
   fitVersion();
   addEventListener("resize", fitVersion);
   document.fonts?.ready.then(fitVersion);
-  const uptime = document.getElementById("uptime");
-  const started = new Date(uptime.dataset.started);
-
   // The fleet assembles itself: every poll is answered by one pod, so over a
-  // few seconds each replica shows up. A pod leaves after a minute of silence,
-  // which is what the end of a rollout looks like from here.
+  // few seconds each replica shows up, each counting from its own start. A pod
+  // leaves after a minute of silence, which is what the end of a rollout looks
+  // like from here.
   const fleetEl = document.getElementById("fleet");
   const pipsEl = document.getElementById("pips");
   const seen = new Map();
   const silence = 60000;
+  let answering = null;
 
-  function sawPod(pod, ran) {
+  function sawPod(pod, ran, since) {
     if (!pod) return;
-    seen.set(pod, { version: ran, at: Date.now() });
+    answering = pod;
+    seen.set(pod, { version: ran, at: Date.now(), since: Date.parse(since) || Date.now() });
     for (const [name, entry] of seen) {
       if (Date.now() - entry.at > silence) seen.delete(name);
     }
-    drawFleet(pod);
+    drawFleet();
   }
 
-  function drawFleet(answering) {
+  function drawFleet() {
     const versions = new Set([...seen.values()].map((e) => e.version));
     fleetEl.replaceChildren(...[...seen].map(([name, entry]) => {
       const chip = document.createElement("span");
@@ -360,7 +360,7 @@
       if (name === answering) chip.classList.add("here");
       if (versions.size > 1 && entry.version !== version) chip.classList.add("other");
       chip.title = versions.size > 1 ? `${name} · ${entry.version}` : name;
-      chip.textContent = name.split("-").pop();
+      chip.textContent = `${name.split("-").pop()} ${formatUptime(Date.now() - entry.since)}`;
       return chip;
     }));
     if (!pipsEl) return;
@@ -372,7 +372,7 @@
     }));
   }
 
-  sawPod(fleetEl.dataset.pod, fleetEl.dataset.version);
+  sawPod(fleetEl.dataset.pod, fleetEl.dataset.version, fleetEl.dataset.started);
 
   function formatUptime(ms) {
     const s = Math.max(0, Math.floor(ms / 1000));
@@ -381,7 +381,7 @@
     if (m > 0) return m + "m " + r + "s";
     return r + "s";
   }
-  setInterval(() => { uptime.textContent = formatUptime(Date.now() - started); }, 1000);
+  setInterval(drawFleet, 1000);
 
   // During a rollout old and new pods both answer; don't flip back to a version already shown.
   function shown() {
@@ -397,7 +397,10 @@
       document.getElementById("offline").hidden = true;
       document.getElementById("note").hidden = false;
       if (info.version !== version && !shown().includes(info.version)) { location.reload(); return; }
-      sawPod(info.pod, info.version);
+      sawPod(info.pod, info.version, info.started);
+      // Once the pod that drew this page has been quiet for a minute it is gone, and everything
+      // the server rendered is about someone else. One reload, after the rollout has settled.
+      if (!seen.has(fleetEl.dataset.pod)) { location.reload(); return; }
       const state = document.getElementById("bucket-state");
       if (state && info.bucket) {
         state.textContent = info.bucket.reachable ? "reachable" : "unreachable";
