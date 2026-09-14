@@ -334,8 +334,7 @@
   document.fonts?.ready.then(fitVersion);
   // The fleet assembles itself: every poll is answered by one pod, so over a
   // few seconds each replica shows up, each counting from its own start. A pod
-  // leaves after a minute of silence, which is what the end of a rollout looks
-  // like from here.
+  // leaves after a minute of silence, which ends a rollout as seen from here.
   const fleetEl = document.getElementById("fleet");
   const pipsEl = document.getElementById("pips");
   const seen = new Map();
@@ -398,8 +397,6 @@
       document.getElementById("note").hidden = false;
       if (info.version !== version && !shown().includes(info.version)) { location.reload(); return; }
       sawPod(info.pod, info.version, info.started);
-      // Once the pod that drew this page has been quiet for a minute it is gone, and everything
-      // the server rendered is about someone else. One reload, after the rollout has settled.
       if (!seen.has(fleetEl.dataset.pod)) { location.reload(); return; }
       const state = document.getElementById("bucket-state");
       if (state && info.bucket) {
