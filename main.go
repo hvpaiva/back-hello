@@ -7,7 +7,6 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"html/template"
 	"io/fs"
 	"log/slog"
@@ -103,20 +102,6 @@ func (p *bucketProbe) status(ctx context.Context) *BucketStatus {
 	return s
 }
 
-// Uptime formats how long the service has been running, like "3h 12m" or "45s".
-func (i Info) Uptime(now time.Time) string {
-	d := now.Sub(i.Started)
-	h, m, s := int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60
-	switch {
-	case h > 0:
-		return fmt.Sprintf("%dh %dm", h, m)
-	case m > 0:
-		return fmt.Sprintf("%dm %ds", m, s)
-	default:
-		return fmt.Sprintf("%ds", s)
-	}
-}
-
 // Barcode is drawn from the version, so each version looks different at a glance.
 type Barcode struct {
 	Bars  []Bar
@@ -207,11 +192,7 @@ func routes(info Info, bucket *bucketProbe) http.Handler {
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		data := struct {
-			Info
-			Now time.Time
-		}{current(r), time.Now()}
-		if err := page.Execute(w, data); err != nil {
+		if err := page.Execute(w, current(r)); err != nil {
 			slog.Error("render page", "err", err)
 		}
 	})
