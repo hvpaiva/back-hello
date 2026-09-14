@@ -6,3 +6,4 @@ port: 8080
 size: small
 public: true
 bucket: {}
+database: {}
