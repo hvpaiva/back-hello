@@ -22,7 +22,7 @@ Each stage is a branch:
 | `staging` | staging | http://hello.staging.localhost |
 | `main` | production | http://hello.localhost |
 
-The CI in `.github/workflows/ci.yaml` is two calls to workflows the platform provides in the lab repository: [`go.yaml`](https://github.com/hvpaiva/back/blob/main/.github/workflows/go.yaml) checks formatting, runs `go vet` and the tests, and [`delivery.yaml`](https://github.com/hvpaiva/back/blob/main/.github/workflows/delivery.yaml) does the rest, the same for every service. On a pull request it checks `charts/hello/` against the platform's chart, so a mistake shows up before the merge. On the stage branches it ships:
+The CI in `.github/workflows/ci.yaml` is two calls to workflows the platform provides in the lab repository: [`service-go.yaml`](https://github.com/hvpaiva/back/blob/main/.github/workflows/service-go.yaml) checks formatting, runs `go vet` and the tests, and [`service-delivery.yaml`](https://github.com/hvpaiva/back/blob/main/.github/workflows/service-delivery.yaml) does the rest, the same for every service. On a pull request it checks `charts/hello/` against the platform's chart, so a mistake shows up before the merge. On the stage branches it ships:
 
 1. A push to `staging` runs the tests, builds `ghcr.io/hvpaiva/back-hello:sha-<commit>` and commits that image to `charts/hello/values-staging.yaml`.
 2. A pull request from `staging` to `main` is the promotion. Once it's merged, CI copies the image staging was running into `charts/hello/values-production.yaml`. Nothing is rebuilt.
