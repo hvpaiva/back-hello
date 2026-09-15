@@ -9,13 +9,13 @@ permissions: {}
 
 jobs:
   test:
-    uses: hvpaiva/back/.github/workflows/go.yaml@main
+    uses: hvpaiva/back/.github/workflows/service-go.yaml@main
     permissions:
       contents: read
 
   delivery:
     needs: test
-    uses: hvpaiva/back/.github/workflows/delivery.yaml@main
+    uses: hvpaiva/back/.github/workflows/service-delivery.yaml@main
     with:
       service: hello
     permissions:
