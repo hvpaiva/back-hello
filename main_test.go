@@ -84,13 +84,13 @@ func TestBucket(t *testing.T) {
 		{"unreachable", errors.New("connection refused"), "unreachable"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			probe := &bucketProbe{name: "hello-staging-hello", check: func(context.Context) error { return tc.err }}
+			probe := &bucketProbe{name: "hello-staging-bucket", check: func(context.Context) error { return tc.err }}
 			_, body := getWith(t, "/api/info", probe, nil)
 			var got Info
 			if err := json.Unmarshal([]byte(body), &got); err != nil {
 				t.Fatal(err)
 			}
-			want := &BucketStatus{Name: "hello-staging-hello", Reachable: tc.err == nil}
+			want := &BucketStatus{Name: "hello-staging-bucket", Reachable: tc.err == nil}
 			if tc.err != nil {
 				want.Error = tc.err.Error()
 			}
@@ -98,7 +98,7 @@ func TestBucket(t *testing.T) {
 				t.Fatalf("bucket: got %+v, want %+v", got.Bucket, want)
 			}
 			_, page := getWith(t, "/", probe, nil)
-			if !strings.Contains(page, "hello-staging-hello") || !strings.Contains(page, ">"+tc.state+"<") {
+			if !strings.Contains(page, "hello-staging-bucket") || !strings.Contains(page, ">"+tc.state+"<") {
 				t.Errorf("page doesn't show the bucket as %s", tc.state)
 			}
 		})
@@ -115,13 +115,13 @@ func TestDatabase(t *testing.T) {
 		{"unreachable", errors.New("connection refused"), "unreachable"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			probe := &databaseProbe{host: "hello-postgres-rw", size: "small", check: func(context.Context) error { return tc.err }}
+			probe := &databaseProbe{host: "database.hello-staging.svc", size: "small", check: func(context.Context) error { return tc.err }}
 			_, body := getWith(t, "/api/info", nil, probe)
 			var got Info
 			if err := json.Unmarshal([]byte(body), &got); err != nil {
 				t.Fatal(err)
 			}
-			want := &DatabaseStatus{Host: "hello-postgres-rw", Size: "small", Reachable: tc.err == nil}
+			want := &DatabaseStatus{Host: "database.hello-staging.svc", Size: "small", Reachable: tc.err == nil}
 			if tc.err != nil {
 				want.Error = tc.err.Error()
 			}
@@ -129,7 +129,7 @@ func TestDatabase(t *testing.T) {
 				t.Fatalf("database: got %+v, want %+v", got.Database, want)
 			}
 			_, page := getWith(t, "/", nil, probe)
-			if !strings.Contains(page, "hello-postgres-rw") || !strings.Contains(page, ">"+tc.state+"<") {
+			if !strings.Contains(page, "database.hello-staging.svc") || !strings.Contains(page, ">"+tc.state+"<") {
 				t.Errorf("page doesn't show the database as %s", tc.state)
 			}
 		})
