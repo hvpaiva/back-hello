@@ -239,7 +239,22 @@ func routes(info Info, bucket *bucketProbe, database *databaseProbe) http.Handle
 			slog.Error("render page", "err", err)
 		}
 	})
-	return mux
+	return failing(mux)
+}
+
+// A canary is stopped by the requests it fails, and a version has to be up and answering wrongly for that to
+// happen: FAIL_REQUESTS makes hello one, keeping /healthz fine so the pod stays ready.
+func failing(next http.Handler) http.Handler {
+	if os.Getenv("FAIL_REQUESTS") != "true" {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		http.Error(w, "failing on purpose", http.StatusInternalServerError)
+	})
 }
 
 func main() {

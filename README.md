@@ -49,4 +49,6 @@ just test
 
 It listens on `PORT` (8080 by default) and reads `APP_ENV`, plus `POD_NAME`, `POD_NAMESPACE` and `NODE_NAME`, which the platform's chart fills in from the Kubernetes downward API. When `BUCKET_NAME` is set, it checks that bucket on every request with the AWS SDK, which reads `AWS_REGION`, `AWS_ENDPOINT_URL` and the credentials from the environment. When `PGHOST` is set, it pings the database on every request with pgx, which reads `PGPORT`, `PGDATABASE`, `PGUSER` and `PGPASSWORD` from the environment the same way. The platform provides all of them.
 
+`FAIL_REQUESTS=true` makes it answer 500 to everything but `/healthz`, so a version can be up, pass its probes and still be wrong. That is what the platform's canary check is there to catch, and hello is the service the lab breaks on purpose.
+
 The font is Barlow Condensed, under the SIL Open Font License (`web/fonts/OFL.txt`).

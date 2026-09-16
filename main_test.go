@@ -54,6 +54,18 @@ func TestHealthz(t *testing.T) {
 	}
 }
 
+func TestFailsOnPurpose(t *testing.T) {
+	t.Setenv("FAIL_REQUESTS", "true")
+	if res, _ := get(t, "/healthz"); res.StatusCode != http.StatusOK {
+		t.Fatalf("healthz got %d, want 200", res.StatusCode)
+	}
+	for _, path := range []string{"/", "/api/info"} {
+		if res, _ := get(t, path); res.StatusCode != http.StatusInternalServerError {
+			t.Fatalf("%s got %d, want 500", path, res.StatusCode)
+		}
+	}
+}
+
 func TestInfoAPI(t *testing.T) {
 	res, body := get(t, "/api/info")
 	if res.StatusCode != http.StatusOK {
